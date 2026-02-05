@@ -24,13 +24,18 @@
       color: #0f0;
       padding: 10px;
       overflow-x: auto;
+      max-height: 300px;
     }
+    label { font-size: 14px; }
   </style>
 </head>
 <body><div class="box">
-  <h1>Instagram Unfollow Checker</h1>  <p>Upload <b>following.json</b> dan <b>followers_1.json</b></p><input type="file" id="followingFile" accept=".json"><br> <input type="file" id="followersFile" accept=".json"><br><br>
+  <h1>Instagram Unfollow Checker</h1>  <p>Upload <b>following.json</b> dan <b>followers_1.json</b></p><input type="file" id="followingFile" accept=".json"><br> <input type="file" id="followersFile" accept=".json"><br>
 
-<button onclick="processFiles()">Cek Sekarang</button>
+  <label>
+    <input type="checkbox" id="filterInactive"> Sembunyikan akun tanpa link (kemungkinan nonaktif)
+  </label>
+  <br><br><button onclick="processFiles()">Cek Sekarang</button>
 
   <pre id="output"></pre></div><script>
 function normalize(username) {
@@ -40,6 +45,7 @@ function normalize(username) {
 function processFiles() {
   const followingFile = document.getElementById('followingFile').files[0];
   const followersFile = document.getElementById('followersFile').files[0];
+  const filterInactive = document.getElementById('filterInactive').checked;
   const output = document.getElementById('output');
 
   if (!followingFile || !followersFile) {
@@ -53,11 +59,13 @@ function processFiles() {
   ]).then(([followingData, followersData]) => {
 
     // ===== FOLLOWING =====
-    const following = followingData.relationships_following
+    let following = followingData.relationships_following
+      .filter(e => !filterInactive || (e.string_list_data[0].href))
       .map(e => normalize(e.title));
 
     // ===== FOLLOWERS =====
-    const followers = followersData
+    let followers = followersData
+      .filter(e => !filterInactive || (e.string_list_data[0].href))
       .map(e => normalize(e.string_list_data[0].value));
 
     const followingSet = new Set(following);
