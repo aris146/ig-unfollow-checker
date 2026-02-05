@@ -1,132 +1,103 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Instagram Unfollow Checker</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f6f9;
-      padding: 30px;
-      text-align: center;
+      background: #f4f6f8;
+      padding: 20px;
     }
-    h1 {
-      color: #1877f2;
-    }
+    h1 { color: #1e88e5; }
     .box {
       background: white;
       padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
       max-width: 600px;
       margin: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
-    input {
-      margin: 10px 0;
-    }
-    button {
-      padding: 10px 20px;
-      background: #1877f2;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #145dbf;
-    }
+    input { margin-bottom: 10px; }
     pre {
-      text-align: left;
-      background: #eee;
+      background: #111;
+      color: #0f0;
       padding: 10px;
-      max-height: 300px;
-      overflow: auto;
+      overflow-x: auto;
     }
   </style>
 </head>
-<body>
+<body><div class="box">
+  <h1>Instagram Unfollow Checker</h1>  <p>Upload <b>following.json</b> dan <b>followers_1.json</b></p><input type="file" id="followingFile" accept=".json"><br> <input type="file" id="followersFile" accept=".json"><br><br>
 
-  <h1>Instagram Unfollow Checker</h1>
+<button onclick="processFiles()">Cek Sekarang</button>
 
-  <div class="box">
-    <p><strong>Upload following.json</strong></p>
-    <input type="file" id="followingFile" accept=".json"><br>
-
-    <p><strong>Upload followers_*.json (bisa pilih banyak)</strong></p>
-    <input type="file" id="followersFile" accept=".json" multiple><br><br>
-
-    <button onclick="processFiles()">Check</button>
-
-    <h3>Hasil:</h3>
-    <pre id="output"></pre>
-  </div>
-
-<script>
-function extractUsername(entry) {
-  if (entry.title) return entry.title;
-  if (entry.string_list_data && entry.string_list_data[0]) {
-    if (entry.string_list_data[0].value) return entry.string_list_data[0].value;
-    if (entry.string_list_data[0].href) {
-      const href = entry.string_list_data[0].href;
-      const parts = href.split("/_u/");
-      if (parts[1]) return parts[1].replace("/", "");
-    }
-  }
-  return null;
+  <pre id="output"></pre></div><script>
+function normalize(username) {
+  return username.trim().toLowerCase();
 }
 
-async function processFiles() {
-  const followingInput = document.getElementById('followingFile').files[0];
-  const followersInput = document.getElementById('followersFile').files;
+function processFiles() {
+  const followingFile = document.getElementById('followingFile').files[0];
+  const followersFile = document.getElementById('followersFile').files[0];
   const output = document.getElementById('output');
 
-  if (!followingInput || followersInput.length === 0) {
-    output.textContent = "Upload semua file dulu.";
+  if (!followingFile || !followersFile) {
+    output.textContent = '⚠️ Upload kedua file JSON terlebih dahulu';
     return;
   }
 
-  const followingText = await followingInput.text();
-  const followingData = JSON.parse(followingText);
+  Promise.all([
+    readJSON(followingFile),
+    readJSON(followersFile)
+  ]).then(([followingData, followersData]) => {
 
-  let followingList = [];
-  const followingArray = followingData.relationships_following || followingData;
+    // ===== FOLLOWING =====
+    const following = followingData.relationships_following
+      .map(e => normalize(e.title));
 
-  followingArray.forEach(entry => {
-    const username = extractUsername(entry);
-    if (username) followingList.push(username);
+    // ===== FOLLOWERS =====
+    const followers = followersData
+      .map(e => normalize(e.string_list_data[0].value));
+
+    const followingSet = new Set(following);
+    const followersSet = new Set(followers);
+
+    const notFollowBack = [...followingSet].filter(u => !followersSet.has(u));
+    const youNotFollowBack = [...followersSet].filter(u => !followingSet.has(u));
+    const mutual = [...followingSet].filter(u => followersSet.has(u));
+
+    let result = '';
+    result += '===== HASIL ANALISIS INSTAGRAM =====\n\n';
+    result += `Total Following       : ${followingSet.size}\n`;
+    result += `Total Followers       : ${followersSet.size}\n`;
+    result += `Mutual                : ${mutual.length}\n`;
+    result += `Tidak Follback        : ${notFollowBack.length}\n`;
+    result += `Kamu Tidak Follback   : ${youNotFollowBack.length}\n\n`;
+
+    result += '===== DAFTAR TIDAK FOLLBACK =====\n';
+    notFollowBack.sort().forEach(u => result += u + '\n');
+
+    output.textContent = result;
+
+  }).catch(err => {
+    output.textContent = '❌ Gagal membaca file JSON';
+    console.error(err);
   });
-
-  let followersList = [];
-
-  for (let file of followersInput) {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    const array = data.relationships_followers || data;
-
-    array.forEach(entry => {
-      const username = extractUsername(entry);
-      if (username) followersList.push(username);
-    });
-  }
-
-  const followingSet = new Set(followingList);
-  const followersSet = new Set(followersList);
-
-  const mutual = [...followingSet].filter(x => followersSet.has(x));
-  const notFollowBack = [...followingSet].filter(x => !followersSet.has(x));
-  const youNotFollowBack = [...followersSet].filter(x => !followingSet.has(x));
-
-  output.textContent =
-    `Total Following: ${followingSet.size}\n` +
-    `Total Followers: ${followersSet.size}\n` +
-    `Mutual: ${mutual.length}\n` +
-    `Tidak Follback: ${notFollowBack.length}\n` +
-    `Kamu Tidak Follback: ${youNotFollowBack.length}\n\n` +
-    `=== DAFTAR TIDAK FOLLBACK ===\n` +
-    notFollowBack.join("\n");
 }
-</script>
 
-</body>
+function readJSON(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        resolve(JSON.parse(reader.result));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+</script></body>
 </html>
